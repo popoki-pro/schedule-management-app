@@ -2,7 +2,7 @@ from datetime import date, datetime, time, timedelta
 
 from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
-from PyQt6.QtWidgets import QSizePolicy, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QWidget
 
 from database import Schedule
 
@@ -49,8 +49,10 @@ class TimeFlowBar(QWidget):
 
         w = self.width()
         h = self.height()
-        margin = 1
-        track = QRectF(margin, h * 0.35, w - margin * 2, h * 0.3)
+        margin = 2
+        track_h = max(4.0, h * 0.45)
+        track_y = (h - track_h) / 2
+        track = QRectF(margin, track_y, w - margin * 2, track_h)
         radius = track.height() / 2
 
         painter.setPen(Qt.PenStyle.NoPen)
@@ -80,83 +82,53 @@ class TimeFlowBar(QWidget):
 
         marker_x = track.left() + track.width() * progress
         marker_y = h / 2
+        marker_r = max(3.0, h * 0.22)
+        glow_r = marker_r + 2
         glow = QPainterPath()
-        glow.addEllipse(marker_x - 5, marker_y - 5, 10, 10)
+        glow.addEllipse(marker_x - glow_r, marker_y - glow_r, glow_r * 2, glow_r * 2)
         painter.setBrush(QColor(108, 158, 255, 70))
         painter.drawPath(glow)
 
         painter.setBrush(QColor("#ffffff"))
         painter.setPen(QPen(QColor("#4f8cff"), 1.5))
-        painter.drawEllipse(int(marker_x - 3), int(marker_y - 3), 6, 6)
+        painter.drawEllipse(
+            int(marker_x - marker_r), int(marker_y - marker_r),
+            int(marker_r * 2), int(marker_r * 2),
+        )
 
         painter.end()
 
 
-class DayTimeline(QWidget):
-    """Vertical time flow for the day detail panel when viewing today."""
+class SidebarTimeFlow(QWidget):
+    """Horizontal time-of-day bar for the day detail sidebar."""
 
     def __init__(self, day: date, parent: QWidget | None = None):
         super().__init__(parent)
         self.day = day
-        self._schedules: list[Schedule] = []
-        self.setMinimumHeight(48)
+        self.setFixedHeight(40)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+
+        self._bar = TimeFlowBar(day)
+        self._bar.setFixedHeight(22)
+        layout.addWidget(self._bar, 1)
+
+        self._time_label = QLabel()
+        self._time_label.setObjectName("SidebarTimeNow")
+        self._time_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        layout.addWidget(self._time_label)
+
+        self.update_flow()
+
     def set_schedules(self, schedules: list[Schedule]) -> None:
-        self._schedules = schedules
-        self.update()
+        self._bar.set_schedules(schedules)
 
     def update_flow(self) -> None:
-        self.update()
-
-    def paintEvent(self, _event) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        w = self.width()
-        h = self.height()
-        track_x = 18
-        track_w = 4
-        track = QRectF(track_x, 8, track_w, h - 16)
-
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#2a2f38"))
-        painter.drawRoundedRect(track, 2, 2)
-
-        progress = day_fraction()
-        flow_h = track.height() * progress
-        if flow_h > 0:
-            flow_rect = QRectF(track.left(), track.top(), track.width(), flow_h)
-            gradient = QLinearGradient(0, flow_rect.top(), 0, flow_rect.bottom())
-            gradient.setColorAt(0.0, QColor("#3d78e8"))
-            gradient.setColorAt(1.0, QColor("#a78bfa"))
-            painter.setBrush(gradient)
-            painter.drawRoundedRect(flow_rect, 2, 2)
-
-        for schedule in self._schedules:
-            span = schedule_span_on_day(schedule, self.day)
-            if not span:
-                continue
-            y1 = track.top() + track.height() * span[0]
-            y2 = track.top() + track.height() * span[1]
-            seg = QRectF(track.right() + 6, y1, w - track.right() - 12, max(y2 - y1, 4))
-            painter.setBrush(QColor(79, 140, 255, 60))
-            painter.setPen(QPen(QColor("#4f8cff"), 1))
-            painter.drawRoundedRect(seg, 3, 3)
-
-        marker_y = track.top() + track.height() * progress
-        painter.setPen(QPen(QColor("#6c9eff"), 2))
-        painter.drawLine(int(track.right() + 2), int(marker_y), w - 8, int(marker_y))
-        painter.setBrush(QColor("#ffffff"))
-        painter.setPen(QPen(QColor("#4f8cff"), 1.5))
-        painter.drawEllipse(int(track_x + track_w / 2 - 4), int(marker_y - 4), 8, 8)
-
         now = datetime.now()
-        painter.setPen(QColor("#6c9eff"))
-        font = painter.font()
-        font.setPointSize(9)
-        font.setBold(True)
-        painter.setFont(font)
-        painter.drawText(w - 52, int(marker_y + 4), now.strftime("%H:%M"))
-
-        painter.end()
+        self._time_label.setText(now.strftime("%H:%M"))
+        self._bar.update_flow()

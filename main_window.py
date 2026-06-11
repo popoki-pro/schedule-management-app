@@ -198,6 +198,11 @@ class MainWindow(QWidget):
             self.refresh()
             self.schedule_changed.emit()
 
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if self._schedules:
+            self.calendar.refresh_time_flow()
+
     def closeEvent(self, event) -> None:
         event.ignore()
         self.hide()
