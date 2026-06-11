@@ -120,8 +120,8 @@ QPushButton#DangerButton:hover {
 QPushButton#IconDangerButton {
     background-color: transparent;
     border: 1px solid transparent;
-    border-radius: 6px;
-    padding: 6px;
+    border-radius: 8px;
+    padding: 4x;
     min-width: 30px;
     max-width: 30px;
     min-height: 30px;
@@ -136,8 +136,8 @@ QPushButton#IconDangerButton:hover {
 QPushButton#IconToggleButton {
     background-color: transparent;
     border: 1px solid transparent;
-    border-radius: 6px;
-    padding: 6px;
+    border-radius: 8px;
+    padding: 4px;
     min-width: 30px;
     max-width: 30px;
     min-height: 30px;
@@ -466,5 +466,12 @@ QLabel#SidebarTitle {
 QLabel#SidebarCount {
     font-size: 12px;
     color: #8b939e;
+}
+
+QLabel#SidebarTimeNow {
+    font-size: 13px;
+    font-weight: 600;
+    color: #6c9eff;
+    min-width: 48px;
 }
 """

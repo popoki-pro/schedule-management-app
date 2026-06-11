@@ -30,7 +30,7 @@ from database import (
     toggle_notification,
 )
 from icons import delete_icon, notify_off_icon, notify_on_icon
-from time_flow import DayTimeline, TimeFlowBar
+from time_flow import SidebarTimeFlow, TimeFlowBar
 
 
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -145,6 +145,7 @@ class CalendarWidget(QFrame):
         self._year = datetime.now().year
         self._month = datetime.now().month
         self._selected_day = datetime.now().date()
+        self._marked_today = self._selected_day
         self._schedules: list[Schedule] = []
         self._cells: dict[date, DayCell] = {}
 
@@ -200,10 +201,26 @@ class CalendarWidget(QFrame):
         self._flow_timer.timeout.connect(self._update_time_flows)
         self._flow_timer.start()
 
+    def refresh_time_flow(self) -> None:
+        self._update_time_flows()
+
     def _update_time_flows(self) -> None:
         if auto_mark_incomplete() > 0:
             self.schedules_updated.emit()
         today = datetime.now().date()
+        if today != self._marked_today:
+            old_today = self._marked_today
+            self._marked_today = today
+            for day, cell in self._cells.items():
+                cell.set_today(day == today)
+            for day in (old_today, today):
+                if day in self._cells:
+                    self._cells[day].populate(schedules_for_date(self._schedules, day))
+            if self._selected_day == old_today:
+                self._selected_day = today
+                for day, cell in self._cells.items():
+                    cell.set_selected(day == today)
+                self.day_selected.emit(today)
         for day, cell in self._cells.items():
             if day == today:
                 cell.update_time_flow()
@@ -231,6 +248,7 @@ class CalendarWidget(QFrame):
                 self.grid.addWidget(cell, row, col)
 
         self.month_label.setText(f"{calendar.month_name[self._month]} {self._year}")
+        self._marked_today = today
         self._update_time_flows()
 
     def _on_day_clicked(self, day: date) -> None:
@@ -312,8 +330,8 @@ class ScheduleCard(QFrame):
 
         delete_btn = QPushButton()
         delete_btn.setObjectName("IconDangerButton")
-        delete_btn.setIcon(delete_icon())
-        delete_btn.setIconSize(QSize(16, 16))
+        delete_btn.setIcon(delete_icon(22))
+        delete_btn.setIconSize(QSize(22, 22))
         delete_btn.setToolTip("Delete schedule")
         delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         delete_btn.clicked.connect(
@@ -345,8 +363,10 @@ class ScheduleCard(QFrame):
             root.addWidget(preview)
 
     def _update_notify_btn(self, enabled: bool) -> None:
-        self.notify_btn.setIcon(notify_on_icon() if enabled else notify_off_icon())
-        self.notify_btn.setIconSize(QSize(18, 18))
+        self.notify_btn.setIcon(
+            notify_on_icon(22) if enabled else notify_off_icon(22)
+        )
+        self.notify_btn.setIconSize(QSize(22, 22))
         self.notify_btn.setToolTip(
             "Click to turn notifications off"
             if enabled
@@ -383,7 +403,7 @@ class DayDetailPanel(QFrame):
         super().__init__(parent)
         self.setObjectName("Sidebar")
         self._day = datetime.now().date()
-        self._day_timeline: DayTimeline | None = None
+        self._sidebar_time_flow: SidebarTimeFlow | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -438,14 +458,13 @@ class DayDetailPanel(QFrame):
             item = self.timeline_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        self._day_timeline = None
+        self._sidebar_time_flow = None
 
         today = datetime.now().date()
         if day == today:
-            self._day_timeline = DayTimeline(day)
-            self._day_timeline.set_schedules(schedules_for_date(schedules, day))
-            self._day_timeline.setFixedHeight(56)
-            self.timeline_layout.addWidget(self._day_timeline)
+            self._sidebar_time_flow = SidebarTimeFlow(day)
+            self._sidebar_time_flow.set_schedules(schedules_for_date(schedules, day))
+            self.timeline_layout.addWidget(self._sidebar_time_flow)
             self.timeline_container.show()
         else:
             self.timeline_container.hide()
@@ -467,8 +486,8 @@ class DayDetailPanel(QFrame):
             self.list_layout.insertWidget(self.list_layout.count() - 1, card)
 
     def update_time_flow(self) -> None:
-        if self._day_timeline:
-            self._day_timeline.update_flow()
+        if self._sidebar_time_flow:
+            self._sidebar_time_flow.update_flow()
 
     def _on_delete(self, schedule_id: int) -> None:
         delete_schedule(schedule_id)
